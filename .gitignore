@@ -26,6 +26,7 @@
 *.exe
 *.out
 *.app
+<<<<<<< HEAD
 /Debug/
 /Release/
 
