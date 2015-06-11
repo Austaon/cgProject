@@ -276,7 +276,6 @@ void keyboard(unsigned char key, int x, int y)
 	{
 		//Pressing r will launch the raytracing.
 		cout<<"Raytracing"<<endl;
-				
 
 		//Setup an image with the size of the current image.
 		Image result(WindowSize_X,WindowSize_Y);

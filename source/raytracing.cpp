@@ -9,6 +9,8 @@
 #endif
 #include "raytracing.h"
 
+#define dot(u,v)   ((u).p[0] * (v).p[0] + (u).p[1] * (v).p[1] + (u).p[2] * (v).p[2])
+
 
 //temporary variables
 //these are only used to illustrate 
@@ -27,7 +29,7 @@ void init()
 	//PLEASE ADAPT THE LINE BELOW TO THE FULL PATH OF THE dodgeColorTest.obj
 	//model, e.g., "C:/temp/myData/GraphicsIsFun/dodgeColorTest.obj", 
 	//otherwise the application will not load properly
-    MyMesh.loadMesh("/Users/Aurel/Documents/cgProject/source/dodgeColorTest.obj", true);
+    MyMesh.loadMesh("/Users/Aurel/Documents/cgProject/source/cube.obj", true);
 	MyMesh.computeVertexNormals();
 
 	//one first move: initialize the first light source
@@ -39,7 +41,40 @@ void init()
 //return the color of your pixel.
 Vec3Df performRayTracing(const Vec3Df & origin, const Vec3Df & dest)
 {
-	return Vec3Df(dest[0],dest[1],dest[2]);
+	std::vector< ::Triangle>::iterator i = MyMesh.triangles.begin();
+
+	Vec3Df color = Vec3Df(0,0,0);
+
+
+	for(i; i<MyMesh.triangles.end(); i++)
+	{
+		//Vertex v0 = MyMesh.vertices[i->v[0]].p;
+		//Vertex v1 = MyMesh.vertices[i->v[1]].p;
+		//Vertex v2 = MyMesh.vertices[i->v[2]].p;
+
+		Vec3Df u = MyMesh.vertices[i->v[1]].p - MyMesh.vertices[i->v[0]].p;
+		Vec3Df v = MyMesh.vertices[i->v[2]].p - MyMesh.vertices[i->v[0]].p;
+		Vec3Df w = dest - MyMesh.vertices[i->v[0]].p;
+
+		float D = dot(u,v)*dot(u,v) - dot(u,u)*dot(v,v);
+
+		float s = (dot(u,v)*dot(w,v) - dot(v,v)*dot(w,u)) / D;
+		float t = (dot(u,v)*dot(w,u) - dot(u,u)*dot(w,v)) / D;
+
+		if(s>=0 && t>=0 && s+t<=1)
+		{
+			double r0 = ((double) rand() / (RAND_MAX));
+			double r1 = ((double) rand() / (RAND_MAX));
+			double r2 = ((double) rand() / (RAND_MAX));
+
+			std::cout << "[" << r0 << ", " << r1 << ", " << r2 << "]" << std::endl;
+			color = Vec3Df(r0,r1,r2);
+			//std::cout << "[" << s << ", " << t << ", " << s+t << "]" << std::endl;
+		}
+
+	}
+
+	return color;
 }
 
 
