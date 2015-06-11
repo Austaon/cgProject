@@ -25,4 +25,15 @@
 # Executables
 *.exe
 *.out
+
 *.app
+/Debug/
+/Release/
+
+# Generated project files
+.cproject
+.project
+/.settings/
+
+#Generated raytraced image
+*.ppm
