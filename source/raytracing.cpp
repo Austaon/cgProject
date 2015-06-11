@@ -63,12 +63,12 @@ Vec3Df performRayTracing(const Vec3Df & origin, const Vec3Df & dest)
 
 		if(s>=0 && t>=0 && s+t<=1)
 		{
-			double r0 = ((double) rand() / (RAND_MAX));
-			double r1 = ((double) rand() / (RAND_MAX));
-			double r2 = ((double) rand() / (RAND_MAX));
+			//double r0 = ((double) rand() / (RAND_MAX));
+			//double r1 = ((double) rand() / (RAND_MAX));
+			//double r2 = ((double) rand() / (RAND_MAX));
 
-			std::cout << "[" << r0 << ", " << r1 << ", " << r2 << "]" << std::endl;
-			color = Vec3Df(r0,r1,r2);
+			//std::cout << "[" << r0 << ", " << r1 << ", " << r2 << "]" << std::endl;
+			color = Vec3Df(1,1,1);
 			//std::cout << "[" << s << ", " << t << ", " << s+t << "]" << std::endl;
 		}
 
