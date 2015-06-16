@@ -37,3 +37,11 @@
 
 #Generated raytraced image
 *.ppm
+
+*.xml
+
+*.xml
+
+*.iml
+
+.idea/workspace.xml

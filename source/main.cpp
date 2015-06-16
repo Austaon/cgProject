@@ -15,6 +15,7 @@
 #include "imageWriter.h"
 
 
+
 //This is the main application
 //Most of the code in here, does not need to be modified.
 //It is enough to take a look at the function "drawFrame",
@@ -37,6 +38,8 @@ unsigned int WindowSize_X = 800;  // resolution X
 unsigned int WindowSize_Y = 800;  // resolution Y
 
 unsigned int selectedLight = 0;
+
+unsigned int sampling = 4; //Supersampling factor. A value of 4 will lead to 16x supersampling (4 times x, 4 times y)
 
 
 /**
@@ -271,6 +274,13 @@ void keyboard(unsigned char key, int x, int y)
 		}
 		break;
 	}
+	case 's':{
+		//Trace single ray
+		Vec3Df testRayOrigin, testRayDestination;
+		produceRay(x, y, &testRayOrigin, &testRayDestination);
+		performRayTracing(testRayOrigin, testRayDestination);
+		break;
+	}
 
 	case 'r':
 	{
@@ -294,27 +304,48 @@ void keyboard(unsigned char key, int x, int y)
 		produceRay(WindowSize_X-1,0, &origin10, &dest10);
 		produceRay(WindowSize_X-1,WindowSize_Y-1, &origin11, &dest11);
 
-		
+		//Vec3Df colors [WindowSize_Y * WindowSize_X] = {};
+		//array<Vec3Df, WindowSize_Y * WindowSize_X] colors = {};
+		Vec3Df *colors;
+		colors = new Vec3Df[WindowSize_Y * WindowSize_X];
+
+
 		for (unsigned int y=0; y<WindowSize_Y;++y)
+		{
+			std::cout << "Progress: " << y << " of " << WindowSize_Y << std::endl;
+			#pragma omp parallel for private(origin, dest)
 			for (unsigned int x=0; x<WindowSize_X;++x)
 			{
+				Vec3Df comp = Vec3Df(0, 0, 0);
 				//produce the rays for each pixel, by interpolating 
 				//the four rays of the frustum corners.
-				float xscale=1.0f-float(x)/(WindowSize_X-1);
-				float yscale=1.0f-float(y)/(WindowSize_Y-1);
 
-				origin=yscale*(xscale*origin00+(1-xscale)*origin10)+
-					(1-yscale)*(xscale*origin01+(1-xscale)*origin11);
-				dest=yscale*(xscale*dest00+(1-xscale)*dest10)+
-					(1-yscale)*(xscale*dest01+(1-xscale)*dest11);
+				//Use supersampling for a less pixelated result
+				for(unsigned xs = 0; xs < sampling; ++xs){
+					for(unsigned ys = 0; ys < sampling; ++ys){
+						float xscale=1.0f-float(x*sampling + xs)/(WindowSize_X*sampling-1);
+						float yscale=1.0f-float(y*sampling + ys)/(WindowSize_Y*sampling-1);
 
-				//launch raytracing for the given ray.
-				Vec3Df rgb = performRayTracing(origin, dest);
+						origin=yscale*(xscale*origin00+(1-xscale)*origin10)+
+							(1-yscale)*(xscale*origin01+(1-xscale)*origin11);
+						dest=yscale*(xscale*dest00+(1-xscale)*dest10)+
+							(1-yscale)*(xscale*dest01+(1-xscale)*dest11);
+
+						//launch raytracing for the given ray.
+						comp += performRayTracing(origin, dest);
+					}
+				}
+
+				colors[WindowSize_X * y + x] = comp / (sampling * sampling);
 				//store the result in an image 
-				result.setPixel(x,y, RGBValue(rgb[0], rgb[1], rgb[2]));
 			}
-
+		}
+		for (unsigned int y=0; y<WindowSize_Y;++y)
+			for (unsigned int x=0; x<WindowSize_X;++x)
+				result.setPixel(x,y, RGBAValue(colors[WindowSize_X * y + x][0], colors[WindowSize_X * y + x][1], colors[WindowSize_X * y + x][2], 1));
+		delete [] colors;
 		result.writeImage("result.ppm");
+		cout<<"Raytracing finished"<<endl;
 		break;
 	}
 	case 27:     // touche ESC
