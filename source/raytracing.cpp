@@ -10,6 +10,7 @@
 #endif
 #include "raytracing.h"
 #include <float.h>
+#include "KdTree.h"
 
 #define dot(u,v)	Vec3Df::dotProduct(u, v)
 
@@ -18,8 +19,9 @@
 //a simple debug drawing. A ray 
 Vec3Df testRayOrigin;
 Vec3Df testRayDestination;
-float lightstrength = 0.9f;
+float lightstrength = 1.0f;
 float ambientstrenght = 0.5f;
+KD * tree;
 
 //use this function for any preprocessing of the mesh.
 void init() {
@@ -32,20 +34,36 @@ void init() {
 	//otherwise the application will not load properly
 	//OR make sure the .obj is located in the working directory
 	//MyMesh.loadMesh("cube.obj", true);
-	MyMesh.loadMesh("dodgeColorTest.obj", true);
+	MyMesh.loadMesh("test.obj", true);
 	MyMesh.computeVertexNormals();
+
+
+	Vec3Df lbf = Vec3Df(FLT_MAX * -1,FLT_MAX * -1, FLT_MAX * -1), rtr = Vec3Df(FLT_MAX, FLT_MAX, FLT_MAX);
+
+	KDLeaf * start = new KDLeaf(lbf, rtr);
+
+	for(unsigned int i = 0; i < MyMesh.triangles.size(); ++i){
+		start->add(i);
+	}
+	start->optimizeBox();
+
+	start->prettyPrint();
+
+	tree = KDNode::build(start, 5);
+
+	tree->prettyPrint();
 
 	//one first move: initialize the first light source
 	//at least ONE light source has to be in the scene!!!
 	//here, we set it to the current location of the camera
 	MyLightPositions.push_back(MyCameraPosition);
-	MyLightPositions.push_back(Vec3Df(1.4, 1.4, 1.4));
+	MyLightPositions.push_back(Vec3Df(0.5, 0.0, -0.5));
 }
 
 /*
  * given 3 points v1, v2 and v3 returns the normal of the plane spanned by these points
  */
-Vec3Df getNormal(const Vec3Df & v1, const Vec3Df & v2, const Vec3Df & v3) {
+inline Vec3Df getNormal(const Vec3Df & v1, const Vec3Df & v2, const Vec3Df & v3) {
 	Vec3Df e1 = v1 - v3;
 	Vec3Df e2 = v2 - v3;
 
@@ -85,15 +103,142 @@ inline bool TriangleTest(Vec3Df p, Vec3Df a, Vec3Df b, Vec3Df c) {
 	return (u >= 0 && u <= 1 && v >= 0 && u + v <= 1);
 }
 
+inline float min(float f1, float f2){
+	if (f1 < f2) return f1;
+	return f2;
+}
+
+inline float max(float f1, float f2){
+	if (f1 > f2) return f1;
+	return f2;
+}
+
+/*
+ * ray = The ray to be tested
+ * p1 = Low Left Front (0,0,0)
+ * p2 = High Right Back (1,1,1)
+ * tIn = entrypoint
+ * tOut = exitpoint
+ */
+bool BoxTest2(Vec3Df ray, Vec3Df p1, Vec3Df p2, Vec3Df &tIn, Vec3Df &tOut) {
+	float
+		txMin = p1[0] / ray[0],
+		txMax = p2[0] / ray[0],
+		tyMin = p1[1] / ray[1],
+		tyMax = p2[1] / ray[1],
+		tzMin = p1[2] / ray[2],
+		tzMax = p2[2] / ray[2];
+	tIn = Vec3Df(min(txMin, txMax), min(tyMin, tyMax), min(tzMin, tzMax));
+	tOut = Vec3Df(max(txMin, txMax), max(tyMin, tyMax), max(tzMin, txMax));
+	float inPar = max(max(tIn[0], tIn[1]), tIn[2]);
+	float outPar = min(min(tOut[0], tOut[1]), tOut[2]);
+	return inPar <= outPar && outPar >= 0;
+}
+
+/*
+ * ray = The ray to be tested
+ * p1 = Low Left Front (0,0,0)
+ * p2 = High Right Back (1,1,1)
+ * tIn = entrypoint
+ * tOut = exitpoint
+ */
+inline bool BoxTest(Vec3Df ray, Vec3Df p1, Vec3Df p2, Vec3Df &tIn, Vec3Df &tOut) {
+	float dist = -1;
+	//front
+	float hit = PlaneTest(ray, Vec3Df(0,0,1), p1);
+	if (hit < 0) {
+		return false;
+	}
+	Vec3Df hitPoint = hit * ray;
+	if (hitPoint[0] >= p1.p[0] && hitPoint[0] <= p2.p[0] && hitPoint[1] >= p1.p[1] && hitPoint[1] <= p2.p[1]) {
+		tIn = hitPoint;
+		dist = hit;
+	}
+
+	//back
+	hit = PlaneTest(ray, Vec3Df(0,0,1), p2);
+	hitPoint = hit * ray;
+	if (hit < 0) {
+		return false;
+	}
+	if (hitCheck(p1,p2,0,1,hit,hitPoint,tIn,tOut,dist)) {
+		return true;
+	}
+
+	//left
+	hit = PlaneTest(ray, Vec3Df(1,0,0), p1);
+	hitPoint = hit * ray;
+	if (hit < 0) {
+		return false;
+	}
+	if (hitCheck(p1,p2,1,2,hit,hitPoint,tIn,tOut,dist)) {
+		return true;
+	}
+
+	//right
+	hit = PlaneTest(ray, Vec3Df(1,0,0), p2);
+	hitPoint = hit * ray;
+	if (hit < 0) {
+		return false;
+	}
+	if (hitCheck(p1,p2,1,2,hit,hitPoint,tIn,tOut,dist)) {
+		return true;
+	}
+
+	//top
+	hit = PlaneTest(ray, Vec3Df(0,1,0), p1);
+	hitPoint = hit * ray;
+	if (hit < 0) {
+		return false;
+	}
+	if (hitCheck(p1,p2,0,2,hit,hitPoint,tIn,tOut,dist)) {
+		return true;
+	}
+
+	//bottom
+	hit = PlaneTest(ray, Vec3Df(0,1,0), p2);
+	hitPoint = hit * ray;
+	if (hit < 0) {
+		return false;
+	}
+	//Compiler was moaning like a little bitch, so we fixed it. :)
+	return hitCheck(p1,p2,0,2,hit,hitPoint,tIn,tOut,dist);
+}
+
+inline bool hitCheck(Vec3Df p1, Vec3Df p2, int i1, int i2, float hit, Vec3Df hitPoint, Vec3Df &tIn, Vec3Df &tOut, float &dist) {
+	if (hitPoint[i1] >= p1.p[i1] && hitPoint[i1] <= p2.p[i1] && hitPoint[i2] >= p1.p[i2] && hitPoint[i2] <= p2.p[i2]) {
+		if (dist == -1) {
+			tIn = hitPoint;
+			dist = hit;
+		}
+		else if (hit > dist) {
+			tOut = hitPoint;
+			return true;
+		}
+		else {
+			tOut = tIn;
+			tIn = hitPoint;
+			return true;
+		}
+	}
+	return false;
+}
+
 /*
  * Given a ray (origin -> dest), calculates the first hit point to a triangle at index triangle in the mesh.
  * Sets triangle to -1 if no intersection with a triangle and this ray is found
  */
-void castRay(const Vec3Df & origin, const Vec3Df & dest, int & triangle, Vec3Df & point, Vec3Df & normal) {
+inline void castRay(const Vec3Df & origin, const Vec3Df & dest, int & triangle, Vec3Df & point, Vec3Df & normal) {
 	//Initialize the minimum distance at quite a large value
 	float nearest = FLT_MAX;
 	triangle = -1;
-	for (unsigned int i = 0; i < MyMesh.triangles.size(); ++i) {
+	std::list< std::pair< float, std::list<unsigned int> > > list = std::list< std::pair< float, std::list<unsigned int> > >();
+	tree->getOrderedTrianlges(origin, dest, list);
+	bool found = false;
+	for(std::list< std::pair< float, std::list<unsigned int> > >::iterator it1 = list.begin(); it1 != list.end() && !found; ++it1){
+		for(std::list<unsigned int>::iterator it2 = it1->second.begin(); it2 != it1->second.end(); ++ it2){
+			unsigned int i  = *it2;
+	//for (unsigned int i = 0; i < MyMesh.triangles.size(); ++i) {
 		//Get all vertices and calculate edges, translated to the origin of the ray as new origin
 		Vec3Df v1 = MyMesh.vertices[MyMesh.triangles[i].v[0]].p - origin;
 		Vec3Df v2 = MyMesh.vertices[MyMesh.triangles[i].v[1]].p - origin;
@@ -104,11 +249,13 @@ void castRay(const Vec3Df & origin, const Vec3Df & dest, int & triangle, Vec3Df 
 		if (hit > 0 && hit < nearest) {
 			//Make sure that p is inside the triangle using barycentric coordinates
 			if (TriangleTest(hit * ray, v1, v2, v3)) {
+				found = true;
 				point = hit * ray;
 				nearest = hit;
 				triangle = i;
 				normal = norm;
 			}
+		}
 		}
 	}
 }
@@ -117,27 +264,34 @@ void castRay(const Vec3Df & origin, const Vec3Df & dest, int & triangle, Vec3Df 
  * given a rat (origin -> dest), test if the ray intersects any triangles.
  * this function is faster and should be used for line of sight tests.
  */
-bool testRay(const Vec3Df & origin, const Vec3Df & dest) {
-	for (unsigned int i = 0; i < MyMesh.triangles.size(); ++i) {
+inline bool testRay(const Vec3Df & origin, const Vec3Df & dest) {
+	std::list< std::pair< float, std::list<unsigned int> > > list = std::list< std::pair< float, std::list<unsigned int> > >();
+	tree->getOrderedTrianlges(origin, dest, list);
+	for(std::list< std::pair< float, std::list<unsigned int> > >::iterator it1 = list.begin(); it1 != list.end(); ++it1){
+		for(std::list<unsigned int>::iterator it2 = it1->second.begin(); it2 != it1->second.end(); ++ it2){
+			unsigned int i  = *it2;
+	//for (unsigned int i = 0; i < MyMesh.triangles.size(); ++i) {
 		//Get all vertices and calculate edges, translated to the origin of the ray as new origin
 		Vec3Df v1 = MyMesh.vertices[MyMesh.triangles[i].v[0]].p - origin;
 		Vec3Df v2 = MyMesh.vertices[MyMesh.triangles[i].v[1]].p - origin;
 		Vec3Df v3 = MyMesh.vertices[MyMesh.triangles[i].v[2]].p - origin;
 		Vec3Df ray = dest - origin;
+		float dist = ray.getLength();
 		Vec3Df norm = getNormal(v1, v2, v3);
 		float hit = PlaneTest(ray, norm, v1);
 		if (hit > 0) {
 			//Make sure that p is inside the triangle using barycentric coordinates
 			if (TriangleTest(hit * ray, v1, v2, v3)) {
-				return true;
+				if (hit * ray.getLength()<dist) return true;
 			}
 		}
+	}
 	}
 	return false;
 }
 
 //Calculate the actual diffuse color, given the diffuse color of the material and a ray hit point p
-Vec3Df calcDiffuse(const Vec3Df & objectColor, const Vec3Df & p, const Vec3Df & normal) {
+inline Vec3Df calcDiffuse(const Vec3Df & objectColor, const Vec3Df & p, const Vec3Df & normal) {
 	//TODO: check of any of this is correct
 	Vec3Df result = Vec3Df(0, 0, 0);
 	for (std::vector<Vec3Df>::iterator l = MyLightPositions.begin();
@@ -145,12 +299,18 @@ Vec3Df calcDiffuse(const Vec3Df & objectColor, const Vec3Df & p, const Vec3Df & 
 		//Translate point p back to world coordinates!
 		//Not sure if I should, this seems to work
 		Vec3Df at, norm;
-		int intersection;
 		if (!testRay(p, *l)) {
 			//No intersection :)
 			Vec3Df lVector = Vec3Df(l->p) - p;
 			lVector.normalize();
-			float lightDiffuse = lightstrength / dot(*l - p, *l - p); //not sure if 1
+			/*
+			 * calculates the strength of the light with inverse-square falloff
+			 * at distance 0 the light intensity is 1.0 I
+			 * at distance 1 the light intensity is 1/4 I
+			 * at distance 2 the light intensity is 1/9 I
+			 */
+			Vec3Df lightDistance = (*l - p);
+			float lightDiffuse = lightstrength / pow(lightDistance.getLength()+1,2);
 			result += dot(lVector, normal)* objectColor * lightDiffuse;
 		}
 	}
@@ -160,16 +320,16 @@ Vec3Df calcDiffuse(const Vec3Df & objectColor, const Vec3Df & p, const Vec3Df & 
 /*
  * adds the ambient light factor to obtain the ambient diffuse color
  */
-Vec3Df calcAmbient(const Vec3Df & objectColor, const Vec3Df & p, const Vec3Df & normal) {
+inline Vec3Df calcAmbient(const Vec3Df & objectColor, const Vec3Df & p, const Vec3Df & normal) {
 	return objectColor * ambientstrenght;
 }
 
 /*
  * given a ray, point and normal reflects the ray and gives the result back as a reflecting color.
  */
-Vec3Df calcReflect(const Vec3Df & objectColor, const Vec3Df & p, Vec3Df ray, const Vec3Df & normal) {
-	ray.normalize();//doesn't work yet
-	return objectColor*performRayTracing(p,p + ray - 2*dot(normal,ray)*normal);
+inline Vec3Df calcReflect(const Vec3Df & objectColor, const Vec3Df & p, Vec3Df ray, const Vec3Df & normal, unsigned int bounces) {
+	ray.normalize();
+	return objectColor*performRayTracing(p,p + ray - 2*dot(normal,ray)*normal, bounces);
 }
 
 //return the color of your pixel.
@@ -210,9 +370,11 @@ Vec3Df calcReflect(const Vec3Df & objectColor, const Vec3Df & p, Vec3Df ray, con
 
 	return color;*/
 	//Default colour: black background
-Vec3Df performRayTracing(const Vec3Df & origin, const Vec3Df & dest) {
+
+Vec3Df performRayTracing(const Vec3Df & origin, const Vec3Df & dest, unsigned int bounces) {
 	//Default color: black background
 	Vec3Df color = Vec3Df(0, 0, 0);
+	if (!bounces) return color;
 	int triangle;
 	Vec3Df p, norm;
 	castRay(origin, dest, triangle, p, norm);
@@ -226,6 +388,9 @@ Vec3Df performRayTracing(const Vec3Df & origin, const Vec3Df & dest) {
 		color += calcDiffuse(diffuse, p * 0.9999 + origin, norm); // if calcDiffuse is working
 		color += calcAmbient(diffuse, p, norm);
 		color += Vec3Df(0,0,0);//calcSpecular;
+		/*if (diffuse[1]>0.8,diffuse[1]>0.8,diffuse[2]>0.8) {
+			color += calcReflect(Vec3Df(1,1,1),p * 0.9999 + origin,dest-origin,norm,--bounces);
+		}*///uncomment this to make white surfaces reflective
 	}
 
 	return color;

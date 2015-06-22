@@ -8,7 +8,6 @@
 #endif
 #include <stdlib.h>
 #include <math.h>
-#include <algorithm>
 #include <assert.h>
 #include "raytracing.h"
 #include "mesh.h"
@@ -40,8 +39,8 @@ unsigned int WindowSize_Y = 800;  // resolution Y
 
 unsigned int selectedLight = 0;
 
-unsigned int sampling = 1; //Supersampling factor. A value of 4 will lead to 16x supersampling (4 times x, 4 times y)
-
+unsigned int sampling = 4; //Supersampling factor. A value of 4 will lead to 16x supersampling (4 times x, 4 times y)
+unsigned int bounces = 8;//max bounces determines reflection depth
 
 /**
  * Main function, which is drawing an image (frame) on the screen
@@ -107,7 +106,7 @@ int main(int argc, char** argv)
     //draw front-facing triangles filled
 	//and back-facing triangles as wires
     glPolygonMode(GL_FRONT,GL_FILL);
-    glPolygonMode(GL_BACK,GL_LINE);
+    glPolygonMode(GL_BACK,GL_FILL);
     //interpolate vertex colors over the triangles
 	glShadeModel(GL_SMOOTH);
 
@@ -166,7 +165,7 @@ void reshape(int w, int h)
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     //glOrtho (-1.1, 1.1, -1.1,1.1, -1000.0, 1000.0);
-    gluPerspective (50, (float)w/h, 0.01, 10);
+    gluPerspective (50, (float)w/h, 0.01, 1000);
     glMatrixMode(GL_MODELVIEW);
 }
 
@@ -279,7 +278,7 @@ void keyboard(unsigned char key, int x, int y)
 		//Trace single ray
 		Vec3Df testRayOrigin, testRayDestination;
 		produceRay(x, y, &testRayOrigin, &testRayDestination);
-		performRayTracing(testRayOrigin, testRayDestination);
+		performRayTracing(testRayOrigin, testRayDestination,bounces);
 		break;
 	}
 
@@ -333,7 +332,7 @@ void keyboard(unsigned char key, int x, int y)
 							(1-yscale)*(xscale*dest01+(1-xscale)*dest11);
 
 						//launch raytracing for the given ray.
-						comp += performRayTracing(origin, dest);
+						comp += performRayTracing(origin, dest, bounces);
 					}
 				}
 
