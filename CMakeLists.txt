@@ -15,6 +15,8 @@ set(SOURCE_FILES
     source/imageWriter.h
     source/main.cpp
     source/matrix.h
+    source/KdTree.h
+    source/KdTree.cpp
     source/mesh.cpp
     source/mesh.h
     source/raytracing.cpp

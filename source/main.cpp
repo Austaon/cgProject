@@ -313,6 +313,8 @@ void keyboard(unsigned char key, int x, int y)
 		for (unsigned int y=0; y<WindowSize_Y;++y)
 		{
 			std::cout << "Progress: " << y << " of " << WindowSize_Y << std::endl;
+			time_t t = time(0);
+			time_t start = 0;
 			#pragma omp parallel for private(origin, dest)
 			for (unsigned int x=0; x<WindowSize_X;++x)
 			{
@@ -337,8 +339,11 @@ void keyboard(unsigned char key, int x, int y)
 				}
 
 				colors[WindowSize_X * y + x] = comp / (sampling * sampling);
-				//store the result in an image 
+				//store the result in an image
 			}
+			time_t diff = time(0) - t;
+			start = start + diff;
+			std::cout << "This took: " << diff << " seconds, and will take about " << (start)*(WindowSize_Y-y)/60 << " minutes more" << std::endl;
 		}
 		float maxintensity = 1;
 		for (unsigned int y=0; y<WindowSize_Y;++y)
