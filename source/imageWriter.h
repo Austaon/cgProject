@@ -107,12 +107,13 @@ class Image
 	int _width;
 	int _height;
 
-	bool writeImage(const char * filename);
+	bool writeImagePpm(const char * filename);
+	bool writeImagePng(const char * filename);
 };
 
 
 
-bool Image::writeImage(const char * filename)
+bool Image::writeImagePpm(const char * filename)
 {
 	//output .ppm file
 	FILE* file;
@@ -145,11 +146,15 @@ bool Image::writeImage(const char * filename)
 		return false;
 	}
 	fclose(file);
+	return true;
+}
+
+bool Image::writeImagePng(const char * filename){
 	//output .png
 	std::vector<unsigned char> png;
 	unsigned error = lodepng::encode(png, _image, _width, _height);
 	if(!error) {
-		lodepng::save_file(png, "result.png");
+		lodepng::save_file(png, filename);
 		return true;
 	}
 	printf("Dump png file problem... fwrite\n");

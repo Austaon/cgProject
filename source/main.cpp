@@ -38,17 +38,21 @@ Mesh MyMesh;
 unsigned int WindowSize_X = 800;  // resolution X
 unsigned int WindowSize_Y = 800;  // resolution Y
 
-unsigned int RenderSize_X = 800;
-unsigned int RenderSize_Y = 800;
+unsigned int RenderSize_X = 200;
+unsigned int RenderSize_Y = 200;
 
 unsigned int selectedLight = 0;
 
-unsigned int sampling = 4; //Supersampling factor. A value of 4 will lead to 16x supersampling (4 times x, 4 times y)
+unsigned int sampling = 2; //Supersampling factor. A value of 4 will lead to 16x supersampling (4 times x, 4 times y)
 unsigned int bounces = 1;//max bounces determines reflection depth
 
 bool kdTreeVerbose = false;
 
 extern KD * tree;
+
+GLfloat light_ambient[] = { 0.0, 0.0, 0.0, 1.0 };
+GLfloat light_diffuse[] = { 1.0, 1.0, 1.0, 1.0 };
+GLfloat light_specular[] = { 1.0, 1.0, 1.0, 1.0 };
 
 /**
  * Main function, which is drawing an image (frame) on the screen
@@ -96,11 +100,15 @@ int main(int argc, char** argv)
 
 	//activate the light following the camera
     glEnable( GL_LIGHTING );
-    glEnable( GL_LIGHT0 );
     glEnable(GL_COLOR_MATERIAL);
+
+/*
+    glEnable( GL_LIGHT0 );
     int LightPos[4] = {0,0,2,0};
     int MatSpec [4] = {1,1,1,1};
     glLightiv(GL_LIGHT0,GL_POSITION,LightPos);
+    */
+
 
 	//normals will be normalized in the graphics pipeline
 	glEnable(GL_NORMALIZE);
@@ -165,6 +173,24 @@ int main(int argc, char** argv)
 
     glutSwapBuffers();//glut internal switch
 	glPopAttrib();//return to old GL state
+
+	//Update the light sources in the scene so it has a shaded display.
+	for (unsigned int i = 0; i < MyLightPositions.size(); ++i) {
+		if(!glIsEnabled(GL_LIGHT0 + i)){
+		    glEnable( GL_LIGHT0 + i);
+		    glLightfv(GL_LIGHT0 + i, GL_AMBIENT, light_ambient);
+		    glLightfv(GL_LIGHT0 + i, GL_DIFFUSE, light_diffuse);
+		    glLightfv(GL_LIGHT0 + i, GL_SPECULAR, light_specular);
+		    std::cout << "I AM ENABLED :  " << GL_LIGHT0 + i << std::endl;
+		}
+
+		float xl = MyLightPositions[i][0];
+		float yl = MyLightPositions[i][1];
+		float zl = MyLightPositions[i][2];
+	    float LightPos[4] = {xl, yl, zl, 1};
+
+	    glLightfv(GL_LIGHT0 + i,GL_POSITION,LightPos);
+	}
 }
 //Window changes size
 void reshape(int w, int h)
@@ -218,12 +244,12 @@ void keyboard(unsigned char key, int x, int y)
     switch (key)
     {
 	//add/update a light based on the camera position.
-	case 'L':
+	case 'l':
 		MyLightPositions.push_back(getCameraPosition());
 		break;
 
 	//Set last light to camera positions.
-	case 'l':
+	case 'm':
 		MyLightPositions[MyLightPositions.size()-1]=getCameraPosition();
 		break;
 
@@ -274,22 +300,15 @@ void keyboard(unsigned char key, int x, int y)
 		    fflush(stdout);
 		}
 		else{
+			glDisable( GL_LIGHT0 + (MyLightPositions.size()-1));
+			std::cout << "I AM DISABLED :  " << GL_LIGHT0 + selectedLight << std::endl;
 			MyLightPositions.erase(MyLightPositions.begin()+selectedLight);
+
 			if(selectedLight > 0)
 				selectedLight--;
 			else
 				selectedLight = MyLightPositions.size()-1;
 		}
-		break;
-	}
-	case 's':{
-		//Trace single ray
-		kdTreeVerbose = true;
-		Vec3Df testRayOrigin, testRayDestination;
-		produceRay(x, y, &testRayOrigin, &testRayDestination);
-		performRayTracing(testRayOrigin, testRayDestination,bounces);
-		kdTreeVerbose = false;
-		tree->prettyPrintHit(testRayOrigin, testRayDestination);
 		break;
 	}
 
@@ -366,7 +385,7 @@ void keyboard(unsigned char key, int x, int y)
 			for (unsigned int x=0; x<RenderSize_X;++x)
 				result.setPixel(x,y, RGBAValue(colors[RenderSize_X * y + x][0]/maxintensity, colors[RenderSize_X * y + x][1]/maxintensity, colors[RenderSize_X * y + x][2]/maxintensity, 1));
 		delete [] colors;
-		result.writeImage("result.ppm");
+		result.writeImagePng("result.png");
 		cout<<"Raytracing finished"<<endl;
 		break;
 	}
