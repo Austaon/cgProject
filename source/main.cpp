@@ -14,6 +14,14 @@
 #include "traqueboule.h"
 #include "imageWriter.h"
 #include "KdTree.h"
+#include <string>
+#include <iostream>
+#include <fstream>
+#include <stdexcept>
+#include <map>
+#include <sstream>
+
+std::map<std::string, std::string> config;
 
 
 
@@ -75,11 +83,39 @@ void display(void);
 void reshape(int w, int h);
 void keyboard(unsigned char key, int x, int y);
 
+void loadConfig(){
+	std::string id, eq, val;
+	std::ifstream cfgfile;
+	cfgfile.open ("groep21.config");
+	std::string line;
+	while (std::getline(cfgfile, line)){
+		std::istringstream iss(line);
+		std::string id, eq, val;
+		if (!(iss >> id >> eq >> val)) { continue; } // error
+		if (id[0] == '#') continue;  // skip comments
+		if (eq != "=") throw std::runtime_error("Parse error");
+		std::cout << "Config setting: " << id << " is " << val << std::endl;
+		config[id] = val;
+	}
+	cfgfile.close();
+}
+
+void getSettings(){
+	RenderSize_X = atoi(config["renderHeight"].c_str());
+	RenderSize_Y = atoi(config["renderWidth"].c_str());
+	sampling = atoi(config["superSampling"].c_str());
+	bounces = atoi(config["bounces"].c_str());
+}
+
 /**
  * Main Programme
  */
 int main(int argc, char** argv)
 {
+	loadConfig();
+	getSettings();
+	WindowSize_X = atoi(config["windowWidth"].c_str());
+	WindowSize_Y = atoi(config["windowHeight"].c_str());
     glutInit(&argc, argv);
 
     //framebuffer setup
@@ -181,7 +217,6 @@ int main(int argc, char** argv)
 		    glLightfv(GL_LIGHT0 + i, GL_AMBIENT, light_ambient);
 		    glLightfv(GL_LIGHT0 + i, GL_DIFFUSE, light_diffuse);
 		    glLightfv(GL_LIGHT0 + i, GL_SPECULAR, light_specular);
-		    std::cout << "I AM ENABLED :  " << GL_LIGHT0 + i << std::endl;
 		}
 
 		float xl = MyLightPositions[i][0];
@@ -301,7 +336,6 @@ void keyboard(unsigned char key, int x, int y)
 		}
 		else{
 			glDisable( GL_LIGHT0 + (MyLightPositions.size()-1));
-			std::cout << "I AM DISABLED :  " << GL_LIGHT0 + selectedLight << std::endl;
 			MyLightPositions.erase(MyLightPositions.begin()+selectedLight);
 
 			if(selectedLight > 0)
@@ -309,6 +343,14 @@ void keyboard(unsigned char key, int x, int y)
 			else
 				selectedLight = MyLightPositions.size()-1;
 		}
+		break;
+	}
+
+	case 'c':
+	{
+		printf("Reloading configuration\n");
+		loadConfig();
+		getSettings();
 		break;
 	}
 
@@ -385,7 +427,12 @@ void keyboard(unsigned char key, int x, int y)
 			for (unsigned int x=0; x<RenderSize_X;++x)
 				result.setPixel(x,y, RGBAValue(colors[RenderSize_X * y + x][0]/maxintensity, colors[RenderSize_X * y + x][1]/maxintensity, colors[RenderSize_X * y + x][2]/maxintensity, 1));
 		delete [] colors;
-		result.writeImagePng("result.png");
+		std::string outputFile = config["outputfileName"] + "." + config["outputfileType"];
+		if(config["outputfileType"] == "png"){
+			result.writeImagePng(outputFile.c_str());
+		}else{
+			result.writeImagePpm(outputFile.c_str());
+		}
 		cout<<"Raytracing finished"<<endl;
 		break;
 	}

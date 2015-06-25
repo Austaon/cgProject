@@ -36,7 +36,7 @@ void init() {
 	//otherwise the application will not load properly
 	//OR make sure the .obj is located in the working directory
 	//MyMesh.loadMesh("cube.obj", true);
-	MyMesh.loadMesh("dodgeColorTest.obj", true);
+	MyMesh.loadMesh(config["scene"].c_str(), true);
 	MyMesh.computeVertexNormals();
 
 
@@ -49,17 +49,15 @@ void init() {
 	}
 	start->optimizeBox();
 
-	start->prettyPrint();
-
-	tree = KDNode::build(start, 5);
-
-	tree->prettyPrint();
+	unsigned int
+		treeDepth = atoi(config["kdTreeLevels"].c_str()),
+		treeParts = atoi(config["kdTreeParts"].c_str());
+	tree = KDNode::build(start, treeDepth, treeParts);
 
 	//one first move: initialize the first light source
 	//at least ONE light source has to be in the scene!!!
 	//here, we set it to the current location of the camera
 	MyLightPositions.push_back(MyCameraPosition);
-	MyLightPositions.push_back(Vec3Df(0.5, 0.0, -0.5));
 }
 
 /*
@@ -80,6 +78,12 @@ inline Vec3Df getNormal(const Vec3Df & v1, const Vec3Df & v2, const Vec3Df & v3)
  * defined by point v1 and normal n.
  */
 inline float PlaneTest(const Vec3Df & ray, const Vec3Df & n, const Vec3Df & v1) {
+	if (Vec3Df::dotProduct(ray, n) == 0) {
+		// The plane is parallel to the ray, so an intersection never occurs.
+		// Returning a distance of -1 so this plane won't affect the image.
+		return -1;
+	}
+	
 	//Distance from origin to the plane
 	float dist = Vec3Df::dotProduct(v1, n);
 
@@ -297,7 +301,7 @@ Vec3Df performRayTracing(const Vec3Df & origin, const Vec3Df & dest, unsigned in
 		//Translate point p back to world coordinates!
 		color += calcDiffuse(diffuse, p * 0.9999 + origin, norm); // if calcDiffuse is working
 		color += calcAmbient(diffuse, p, norm);
-		color += Vec3Df(0,0,0);//calcSpecular;
+		//color += Vec3Df(0,0,0);//calcSpecular;//TODO: Implement
 		/*if (diffuse[1]>0.8,diffuse[1]>0.8,diffuse[2]>0.8) {
 			color += calcReflect(Vec3Df(1,1,1),p * 0.9999 + origin,dest-origin,norm,--bounces);
 		}*///uncomment this to make white surfaces reflective
